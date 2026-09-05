@@ -1,0 +1,67 @@
+{
+  "name": "cloudsynth",
+  "version": "0.4.0",
+  "description": "Check a synthesized AWS CDK app against cloudsynth.intent.yml. Exemptions, coverage accounting, shareable rule packs, and an editor schema. Runs entirely in your own pipeline: no account, no API key, no network calls.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "cloudsynth": "./dist/cloudsynth.mjs"
+  },
+  "main": "./dist/cloudsynth.mjs",
+  "exports": {
+    ".": "./dist/cloudsynth.mjs"
+  },
+  "files": [
+    "dist/cloudsynth.mjs",
+    "schema/intent-v1.json",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "aws",
+    "cdk",
+    "cloudformation",
+    "infrastructure-as-code",
+    "iac",
+    "policy",
+    "policy-as-code",
+    "verification",
+    "compliance",
+    "ci",
+    "devsecops",
+    "cdk-nag",
+    "intent"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/htah893A/cloudsynth.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://www.cloudsynth.dev/docs/cloudsynth-cli/verify-in-ci",
+  "bugs": {
+    "url": "https://github.com/htah893A/cloudsynth/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc && node scripts/bundle.mjs",
+    "test": "vitest run",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "ajv": "^8.20.0",
+    "esbuild": "0.25.5",
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.11",
+    "yaml": "2.9.0",
+    "zod": "3.25.17",
+    "zod-to-json-schema": "3.25.1"
+  }
+}

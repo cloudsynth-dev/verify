@@ -1,0 +1,753 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://www.cloudsynth.dev/schema/intent-v1.json",
+  "title": "cloudsynth.intent.yml",
+  "description": "What an AWS CDK stack is supposed to do. Checked by `cloudsynth verify` against the CloudFormation templates `cdk synth` already produced. https://www.npmjs.com/package/cloudsynth",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "number",
+      "const": 1,
+      "description": "The intent file format version. Stays 1; the format grows additively."
+    },
+    "extends": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "description": "Files or packs to build on, nearest-wins. A pack name resolves to node_modules/<name>/cloudsynth.intent.yml."
+    },
+    "disable": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+      },
+      "minItems": 1,
+      "description": "Check ids removed after the merge — how to drop an inherited rule without forking the pack."
+    },
+    "overrides": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning"
+            ]
+          }
+        },
+        "required": [
+          "severity"
+        ],
+        "additionalProperties": false
+      },
+      "propertyNames": {
+        "minLength": 1,
+        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+      },
+      "description": "Adjust an inherited check without copying it. severity is the only overridable field."
+    },
+    "coverage": {
+      "type": "object",
+      "properties": {
+        "require": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9]+(::[A-Za-z0-9]+)+$"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "require"
+      ],
+      "additionalProperties": false,
+      "description": "Resource types every resource of which must be examined by some check. A gap fails the run, naming the untouched logical ids."
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "description": "Stable kebab-case identity for this check. Renaming one is a real change: reports, exemptions and overrides all key off it."
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A human sentence, shown verbatim. Write it as the thing that SHOULD be true, so it reads correctly next to both PASS and FAIL."
+          },
+          "hint": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Shown instead of the generated diagnostic when the check fails. Write the fix, imperatively: \"Set blockPublicAccess: BlockPublicAccess.BLOCK_ALL.\""
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning"
+            ],
+            "default": "error",
+            "description": "error fails the build; warning is reported and does not."
+          },
+          "select": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9]+(::[A-Za-z0-9]+)+$"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9]+(::[A-Za-z0-9]+)+$"
+                    },
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "match": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Logical-id glob (* only), narrowing the selection by resource name."
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 1
+              }
+            ],
+            "description": "What the check is about: a CloudFormation resource type, or a list of sources to draw subjects from several places at once."
+          },
+          "match": {
+            "type": "string",
+            "minLength": 1
+          },
+          "where": {
+            "type": "object",
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "const": "present"
+                        },
+                        {
+                          "type": "string",
+                          "const": "absent"
+                        },
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "not": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "const": "present"
+                                },
+                                {
+                                  "type": "string",
+                                  "const": "absent"
+                                },
+                                {
+                                  "type": "boolean"
+                                },
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "string"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "not"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "at-least": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "at-least"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "at-most": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "at-most"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "const": "present"
+                          },
+                          {
+                            "type": "string",
+                            "const": "absent"
+                          },
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "not": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "const": "present"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "const": "absent"
+                                  },
+                                  {
+                                    "type": "boolean"
+                                  },
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "string"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "not"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "at-least": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "at-least"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "at-most": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "at-most"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "minItems": 1
+                }
+              ]
+            },
+            "propertyNames": {
+              "minLength": 1
+            },
+            "description": "Narrows the selection by property before the quantifier applies — \"every method EXCEPT OPTIONS\"."
+          },
+          "quantifier": {
+            "type": "string",
+            "enum": [
+              "every",
+              "any",
+              "none"
+            ],
+            "default": "every",
+            "description": "every: all selected subjects must satisfy. any: at least one must. none: a prohibition, none may."
+          },
+          "on-empty": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail"
+            ],
+            "default": "fail",
+            "description": "What an empty selection means for every/any. pass makes the check conditional — \"IF this stack has queues\" — which is what a portable pack needs."
+          },
+          "assert": {
+            "type": "object",
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "const": "present"
+                        },
+                        {
+                          "type": "string",
+                          "const": "absent"
+                        },
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "not": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "const": "present"
+                                },
+                                {
+                                  "type": "string",
+                                  "const": "absent"
+                                },
+                                {
+                                  "type": "boolean"
+                                },
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "string"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "not"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "at-least": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "at-least"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "at-most": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "at-most"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "const": "present"
+                          },
+                          {
+                            "type": "string",
+                            "const": "absent"
+                          },
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "not": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "const": "present"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "const": "absent"
+                                  },
+                                  {
+                                    "type": "boolean"
+                                  },
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "string"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "not"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "at-least": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "at-least"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "at-most": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "at-most"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "minItems": 1
+                }
+              ]
+            },
+            "propertyNames": {
+              "minLength": 1
+            },
+            "description": "Conjunction: every dot-path expectation must hold. Use this or any-of, not both."
+          },
+          "any-of": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "const": "present"
+                          },
+                          {
+                            "type": "string",
+                            "const": "absent"
+                          },
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "not": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "const": "present"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "const": "absent"
+                                  },
+                                  {
+                                    "type": "boolean"
+                                  },
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "string"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "not"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "at-least": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "at-least"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "at-most": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "at-most"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "const": "present"
+                            },
+                            {
+                              "type": "string",
+                              "const": "absent"
+                            },
+                            {
+                              "type": "boolean"
+                            },
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "not": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "const": "present"
+                                    },
+                                    {
+                                      "type": "string",
+                                      "const": "absent"
+                                    },
+                                    {
+                                      "type": "boolean"
+                                    },
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "string"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "not"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "at-least": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "at-least"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "at-most": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "at-most"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "minItems": 1
+                  }
+                ]
+              },
+              "propertyNames": {
+                "minLength": 1
+              }
+            },
+            "minItems": 2,
+            "description": "Disjunction: at least one predicate must hold — for a resource with two legitimate shapes, like a queue encrypted by KMS or by SQS-managed SSE."
+          },
+          "exempt": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "match": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "until": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                }
+              },
+              "required": [
+                "match",
+                "reason"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "description": "Named carve-outs for individual resources. Excuses a resource, not the check."
+          }
+        },
+        "required": [
+          "id",
+          "description",
+          "select"
+        ],
+        "additionalProperties": false
+      },
+      "default": [],
+      "description": "The checks this file asserts. Optional only when `extends` supplies them."
+    }
+  },
+  "required": [
+    "version"
+  ],
+  "additionalProperties": false,
+  "x-generated-by": "cloudsynth@0.4.0"
+}

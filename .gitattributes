@@ -1,0 +1,5 @@
+# Generated files are byte-compared by their guards.
+*.json text eol=lf
+*.yml text eol=lf
+*.ts text eol=lf
+*.md text eol=lf

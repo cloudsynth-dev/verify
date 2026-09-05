@@ -1,0 +1,30 @@
+# Fixture for the report-contract snapshot.
+#
+# Checked in rather than written to a temp directory, because the report
+# carries `source` and `intentFile` — real paths — and a temp directory makes
+# the snapshot different on every run. It passed locally and failed the moment
+# the suite ran twice.
+#
+# One passing check, one failing, one warning: enough for every field in the
+# contract to appear with a real value.
+version: 1
+checks:
+  - id: table-encrypted
+    description: Table encrypts at rest
+    select: AWS::DynamoDB::Table
+    assert:
+      SSESpecification.SSEEnabled: true
+
+  - id: provisioned-billing
+    description: Table uses provisioned billing
+    hint: "Pass billingMode: BillingMode.PROVISIONED."
+    select: AWS::DynamoDB::Table
+    assert:
+      BillingMode: PROVISIONED
+
+  - id: functions-have-a-runtime
+    description: Every function pins a runtime
+    severity: warning
+    select: AWS::Lambda::Function
+    assert:
+      Runtime: python3.12
