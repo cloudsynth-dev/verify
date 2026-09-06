@@ -64,8 +64,14 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       # Node 20 ships npm 10, which has no trusted publishing at all.
+      #
+      # Pinned to the 11 line rather than `latest`, which is not a style
+      # preference: npm 12 requires Node >= 22.22.2 and refuses to install on
+      # the Node 20 above with EBADENGINE. `latest` moving under a workflow is
+      # exactly the kind of drift a release path should not have, and npm 11.x
+      # is the range that has trusted publishing AND supports Node 20.
       - name: Install an npm that can do trusted publishing
-        run: npm i -g npm@latest
+        run: npm i -g npm@11
 
       - name: Assert npm >= 11.5.1
         run: |
