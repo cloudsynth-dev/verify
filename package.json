@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "bin": {
-    "cloudsynth": "./dist/cloudsynth.mjs"
+    "cloudsynth": "dist/cloudsynth.mjs"
   },
   "main": "./dist/cloudsynth.mjs",
   "exports": {
