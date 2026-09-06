@@ -12,7 +12,7 @@ npx cloudsynth verify    # green, first try
 Three commands from cold to gated. No YAML authored.
 
 - **No network, ever.** No account, no API key, no telemetry, no update check.
-  [Asserted against the published bundle](https://github.com/htah893A/cloudsynth/blob/main/SECURITY.md), not promised.
+  [Asserted against the published bundle](https://github.com/cloudsynth-dev/verify/blob/main/SECURITY.md), not promised.
 - **Zero runtime dependencies.** One 93 kB package, six files.
 - **The CDK is not required.** It reads CloudFormation. SAM templates and
   hand-written CloudFormation work identically, both covered by tests.
@@ -80,7 +80,7 @@ exactly the same thing:
 
 ```yaml
 - run: npx cdk synth --all
-- uses: htah893A/cloudsynth-verify-action@v0
+- uses: cloudsynth-dev/verify-action@v0
 ```
 
 **GitLab CI**
@@ -284,8 +284,8 @@ evaluated — a conditionally created resource is judged as though it exists.
 ## Links
 
 - [Docs](https://www.cloudsynth.dev/docs/cloudsynth-cli/verify-in-ci)
-- [Security and the no-network guarantee](https://github.com/htah893A/cloudsynth/blob/main/SECURITY.md)
-- [Changelog](https://github.com/htah893A/cloudsynth/blob/main/packages/cli/CHANGELOG.md)
-- [Issues](https://github.com/htah893A/cloudsynth/issues)
+- [Security and the no-network guarantee](https://github.com/cloudsynth-dev/verify/blob/main/SECURITY.md)
+- [Changelog](https://github.com/cloudsynth-dev/verify/blob/main/CHANGELOG.md)
+- [Issues](https://github.com/cloudsynth-dev/verify/issues)
 
 MIT.

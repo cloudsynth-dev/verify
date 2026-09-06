@@ -173,12 +173,12 @@ describe('the README documents what the schema defines', () => {
    * Every `uses:` in the README must name the action repository that actually
    * exists. The README once advertised `cloudsynth/verify@v1`, a repo nobody
    * had created — a promise nothing kept, and the reason this test was written.
-   * htah893A/cloudsynth-verify-action is real, public, and tagged v0.
+   * cloudsynth-dev/verify-action is real, public, and tagged v0.
    */
   it('only references the action repository that exists', () => {
     const readme = readFileSync(README, 'utf8');
     const uses = [...readme.matchAll(/uses:\s*([^\s`]+)/g)].map((m) => m[1]);
-    expect(uses.filter((u) => !u!.startsWith('htah893A/cloudsynth-verify-action@'))).toEqual([]);
+    expect(uses.filter((u) => !u!.startsWith('cloudsynth-dev/verify-action@'))).toEqual([]);
     expect(readme).not.toContain('cloudsynth/verify@');
   });
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.1
+
+Metadata only — no code changes.
+
+- `repository`, `homepage` and `bugs` now point at
+  [cloudsynth-dev/verify](https://github.com/cloudsynth-dev/verify), the public
+  source mirror, rather than a private monorepo nobody could open. The npm page
+  now links somewhere that resolves.
+- The GitHub Action moved to `cloudsynth-dev/verify-action`. The old
+  `htah893A/cloudsynth-verify-action` reference still redirects, so existing
+  workflows keep working, but new ones should use the new path.
+
 ## 0.4.0
 
 Pre-adoption hardening. No new product surface — this release is about the

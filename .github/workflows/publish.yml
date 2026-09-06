@@ -1,0 +1,133 @@
+name: publish
+
+# Publishes `cloudsynth` to npm with provenance, authenticated by GitHub OIDC.
+#
+# ── No token, anywhere in this file ─────────────────────────────────────────
+# npm trusted publishing exchanges the workflow's OIDC identity for a
+# short-lived credential at publish time. There is no NPM_TOKEN secret on this
+# repository and no NODE_AUTH_TOKEN on the publish step, which is not an
+# oversight — it is the mechanism. `actions/setup-node` writes an .npmrc with
+# no auth line, npm finds no token, and falls back to OIDC.
+#
+# That also makes EOTP structurally impossible. Every previous CI publish
+# attempt failed with "This operation requires a one-time password", because
+# the package requires two-factor authentication and rejects tokens outright.
+# OIDC satisfies that requirement on its own, so the package stays on its
+# strict setting and CI can still publish. A long-lived token would have
+# required loosening it.
+#
+# ── A contributor's pull request can never publish ──────────────────────────
+# There is no `pull_request` trigger. Publishing fires on a version tag or a
+# deliberate dispatch, and nothing else. Fork PRs receive no secrets and no
+# id-token permission regardless, so both facts hold independently.
+#
+# npm-side registration is manual and must exist before this can succeed:
+#   npmjs.com -> cloudsynth -> Settings -> Trusted Publisher
+#     Organization: cloudsynth-dev   Repository: verify
+#     Workflow filename: publish.yml   Environment: (blank)
+# The filename above must match this file's name exactly.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to (re)publish'
+        required: true
+
+permissions:
+  contents: read
+  # The whole authentication story. Without this npm has no identity to
+  # exchange and falls back to looking for a token that does not exist.
+  id-token: write
+
+concurrency:
+  # Never cancel a publish in flight: a half-finished registry write is worse
+  # than a duplicate run, which the already-published guard would refuse anyway.
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          # Writes the .npmrc that points at the public registry. It carries no
+          # auth line, which is what lets npm reach for OIDC.
+          registry-url: 'https://registry.npmjs.org'
+
+      # Node 20 ships npm 10, which has no trusted publishing at all.
+      - name: Install an npm that can do trusted publishing
+        run: npm i -g npm@latest
+
+      - name: Assert npm >= 11.5.1
+        run: |
+          NPMV=$(npm -v)
+          echo "npm $NPMV"
+          # Sorting the two versions and checking which comes first is a
+          # dependency-free semver comparison, and this runs before anything is
+          # installed. A silent fall-through here would publish with a token
+          # that does not exist and fail confusingly much later.
+          if [ "$(printf '%s\n11.5.1\n' "$NPMV" | sort -V | head -1)" != "11.5.1" ]; then
+            echo "::error::npm $NPMV is older than 11.5.1 — trusted publishing unavailable"
+            exit 1
+          fi
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - run: npm test
+
+      # ── Guards, ported from the monorepo's release workflow ───────────────
+      - name: Tag and manifest must agree
+        run: |
+          VER=$(node -p "require('./package.json').version")
+          REF="${{ github.event.inputs.tag || github.ref_name }}"
+          if [ "$REF" != "v$VER" ]; then
+            echo "::error::tag $REF does not match package version $VER"
+            exit 1
+          fi
+          echo "Publishing v$VER"
+
+      - name: Refuse to republish an existing version
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VER=$(node -p "require('./package.json').version")
+          # A published version can be superseded, never replaced. Failing here
+          # is cheap; discovering it afterwards is not.
+          if npm view "$NAME@$VER" version >/dev/null 2>&1; then
+            echo "::error::$NAME@$VER is already on the registry"
+            exit 1
+          fi
+
+      - name: The payload is what we think it is
+        run: |
+          node -e "
+            const m = require('./package.json');
+            const fail = (s) => { console.error('::error::' + s); process.exit(1); };
+            if (m.dependencies && Object.keys(m.dependencies).length) fail('runtime dependencies present');
+            if (m.bin?.cloudsynth?.startsWith('./')) fail('bin has a leading ./ — npm deletes such entries at publish time');
+            if (JSON.stringify(m).match(/cdk-learn|workspace:/)) fail('monorepo detail in the manifest');
+            if (!m.repository?.url?.includes('cloudsynth-dev/verify')) fail('repository does not point at this repo');
+            console.log('payload ok:', m.name + '@' + m.version);
+          "
+
+      # No `env:` block. OIDC provides the credential; a token here would
+      # override it and reintroduce the EOTP failure this design removes.
+      - name: Publish with provenance
+        run: npm publish --provenance --access public
+
+      - name: Say what landed
+        run: |
+          VER=$(node -p "require('./package.json').version")
+          echo "### Published \`cloudsynth@$VER\` with provenance" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://www.npmjs.com/package/cloudsynth/v/$VER" >> "$GITHUB_STEP_SUMMARY"
