@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.4.2
+
+No code changes. The first release published by CI with **provenance**.
+
+Every release before this one was published by a human running `npm login` and
+`npm publish` from a laptop. Three attempts to automate it failed with `EOTP`:
+the package requires two-factor authentication and rejects tokens outright, so
+no long-lived credential could ever have worked, and the usual fix is to weaken
+the package until one does.
+
+Publishing now runs from the public source repository
+[cloudsynth-dev/verify](https://github.com/cloudsynth-dev/verify) and
+authenticates by GitHub OIDC trusted publishing. There is no token — not on the
+repository, not in the workflow, not on anyone's machine. npm exchanges the
+workflow's identity for a short-lived credential at publish time, which
+satisfies the two-factor requirement without loosening it.
+
+What that buys you, reading this from the outside: npm now carries a signed
+attestation linking this tarball to the exact public commit and workflow run
+that produced it. You can check that the code you are reading is the code you
+are installing, rather than taking my word for it.
+
 ## 0.4.1
 
 Metadata only — no code changes.
