@@ -1,0 +1,244 @@
+# cloudsynth-pack-baseline
+#
+# GENERATED from the check catalog in the cloudsynth CLI — edit that, not this.
+# The pack and `cloudsynth init` propose overlapping rules, and maintaining
+# them as two lists is how one of them quietly falls behind.
+#
+# A small set of checks that are defensible on almost any AWS account, meant to
+# be extended and argued with rather than adopted silently:
+#
+#   extends:
+#     - cloudsynth-pack-baseline
+#
+# Every check was run against a real 765-resource CDK app before inclusion, and
+# anything that produced a false failure on correct infrastructure was cut
+# rather than softened. A baseline that cries wolf gets switched off entirely.
+#
+# Every positive check sets `on-empty: pass`: a pack cannot know whether the
+# repo adopting it has any queues, and "No AWS::SQS::Queue in this stack" is not
+# a finding. Those report `subjects: 0`, so a vacuous pass stays visible rather
+# than looking like a real result.
+#
+# Disagreeing with one of these is normal. Override the id in your own file and
+# the rest of the pack stays live, or exempt it with a reason. Both leave a
+# record; deleting the pack does not.
+version: 1
+checks:
+  - id: buckets-block-public-access
+    description: Every bucket blocks all four forms of public access
+    hint: "Set blockPublicAccess: BlockPublicAccess.BLOCK_ALL."
+    select: AWS::S3::Bucket
+    on-empty: pass
+    assert:
+      PublicAccessBlockConfiguration.BlockPublicAcls: true
+      PublicAccessBlockConfiguration.BlockPublicPolicy: true
+      PublicAccessBlockConfiguration.IgnorePublicAcls: true
+      PublicAccessBlockConfiguration.RestrictPublicBuckets: true
+
+  - id: buckets-encrypted-at-rest
+    description: Every bucket encrypts objects at rest
+    hint: "Set encryption: BucketEncryption.S3_MANAGED (or KMS)."
+    select: AWS::S3::Bucket
+    on-empty: pass
+    assert:
+      BucketEncryption: present
+
+  - id: buckets-enforce-ssl
+    description: Every bucket policy denies plaintext HTTP access
+    hint: "Set enforceSSL: true on the Bucket."
+    select:
+      - type: AWS::S3::BucketPolicy
+        items: PolicyDocument.Statement
+    quantifier: any
+    on-empty: pass
+    assert:
+      Effect: Deny
+      Condition.Bool.aws:SecureTransport: "false"
+
+  - id: tables-encrypted-at-rest
+    description: Every DynamoDB table encrypts data at rest
+    hint: "Set encryption: TableEncryption.AWS_MANAGED."
+    select: AWS::DynamoDB::Table
+    on-empty: pass
+    assert:
+      SSESpecification.SSEEnabled: true
+
+  - id: databases-storage-encrypted
+    description: Every RDS instance encrypts its storage
+    hint: "Set storageEncrypted: true."
+    select: AWS::RDS::DBInstance
+    on-empty: pass
+    assert:
+      StorageEncrypted: true
+
+  - id: databases-deletion-protection
+    description: Every RDS instance has deletion protection on
+    hint: "Set deletionProtection: true."
+    select: AWS::RDS::DBInstance
+    on-empty: pass
+    assert:
+      DeletionProtection: true
+
+  - id: no-world-open-ssh
+    description: No security group allows SSH from 0.0.0.0/0
+    hint: "Scope the peer to a CIDR you control, or use SSM Session Manager."
+    select:
+      - type: AWS::EC2::SecurityGroup
+        items: SecurityGroupIngress
+      - type: AWS::EC2::SecurityGroupIngress
+    quantifier: none
+    assert:
+      CidrIp: 0.0.0.0/0
+      FromPort: 22
+
+  - id: no-world-open-rdp
+    description: No security group allows RDP from 0.0.0.0/0
+    hint: "Scope the peer to a CIDR you control."
+    select:
+      - type: AWS::EC2::SecurityGroup
+        items: SecurityGroupIngress
+      - type: AWS::EC2::SecurityGroupIngress
+    quantifier: none
+    assert:
+      CidrIp: 0.0.0.0/0
+      FromPort: 3389
+
+  - id: databases-not-publicly-accessible
+    description: No RDS instance is reachable from the internet
+    hint: "Set publiclyAccessible: false and place it in private subnets."
+    select: AWS::RDS::DBInstance
+    quantifier: none
+    assert:
+      PubliclyAccessible: true
+
+  - id: queues-encrypted-at-rest
+    description: Every SQS queue encrypts messages at rest
+    hint: "Set encryption: QueueEncryption.KMS_MANAGED, or SQS_MANAGED."
+    select: AWS::SQS::Queue
+    on-empty: pass
+    any-of:
+      - KmsMasterKeyId: present
+      - SqsManagedSseEnabled: true
+
+  - id: log-groups-set-explicit-retention
+    description: Every log group sets an explicit retention period
+    hint: "Pass logRetention / retention on the construct that creates it."
+    select: AWS::Logs::LogGroup
+    on-empty: pass
+    assert:
+      RetentionInDays: present
+
+  - id: no-policy-grants-all-actions
+    description: No IAM policy statement grants Action "*" on Resource "*"
+    hint: "Name the actions, or scope the resource. Both being * is admin."
+    select:
+      - type: AWS::IAM::Policy
+        items: PolicyDocument.Statement
+      - type: AWS::IAM::Role
+        items: Policies
+    quantifier: none
+    on-empty: pass
+    assert:
+      Action: "*"
+      Resource: "*"
+
+  - id: cloudfront-viewer-protocol-not-allow-all
+    description: Every CloudFront behaviour redirects or requires HTTPS
+    hint: "Set viewerProtocolPolicy to REDIRECT_TO_HTTPS or HTTPS_ONLY."
+    select: AWS::CloudFront::Distribution
+    on-empty: pass
+    assert:
+      DistributionConfig.DefaultCacheBehavior.ViewerProtocolPolicy:
+        not: allow-all
+
+  - id: cloudfront-minimum-tls-1-2
+    description: Every CloudFront distribution requires TLS 1.2 or better
+    hint: "Set minimumProtocolVersion to TLSv1.2_2021 on the viewer certificate."
+    select: AWS::CloudFront::Distribution
+    on-empty: pass
+    where:
+      DistributionConfig.ViewerCertificate.MinimumProtocolVersion: present
+    assert:
+      DistributionConfig.ViewerCertificate.MinimumProtocolVersion:
+        - not: TLSv1
+        - not: TLSv1_2016
+        - not: TLSv1.1_2016
+        - not: SSLv3
+
+  - id: cognito-password-length
+    description: User pools require passwords of at least 12 characters
+    hint: "Set passwordPolicy.minLength to 12 or more."
+    select: AWS::Cognito::UserPool
+    on-empty: pass
+    assert:
+      Policies.PasswordPolicy.MinimumLength:
+        at-least: 12
+
+  - id: kms-key-rotation-enabled
+    description: Every customer-managed KMS key rotates annually
+    hint: "Set enableKeyRotation: true on the Key."
+    select: AWS::KMS::Key
+    on-empty: pass
+    assert:
+      EnableKeyRotation: true
+
+  - id: waf-webacl-has-default-action
+    description: Every Web ACL states what to do with unmatched requests
+    hint: "Set defaultAction to allow or block explicitly."
+    select: AWS::WAFv2::WebACL
+    on-empty: pass
+    assert:
+      DefaultAction: present
+
+  - id: sns-topics-encrypted
+    description: Every SNS topic encrypts messages at rest
+    hint: "Pass masterKey on the Topic."
+    select: AWS::SNS::Topic
+    on-empty: pass
+    assert:
+      KmsMasterKeyId: present
+
+  - id: alb-http-listener-redirects
+    description: Every plain-HTTP listener redirects rather than serving
+    hint: "Give the HTTP listener a ListenerAction.redirect to HTTPS."
+    select: AWS::ElasticLoadBalancingV2::Listener
+    on-empty: pass
+    where:
+      Protocol: HTTP
+    assert:
+      DefaultActions.0.Type: redirect
+
+  - id: ecs-no-privileged-containers
+    description: No container runs privileged
+    hint: "Remove privileged: true from the container definition."
+    select:
+      - type: AWS::ECS::TaskDefinition
+        items: ContainerDefinitions
+    quantifier: none
+    on-empty: pass
+    assert:
+      Privileged: true
+
+  - id: efs-encrypted
+    description: Every EFS file system encrypts at rest
+    hint: "Set encrypted: true on the FileSystem."
+    select: AWS::EFS::FileSystem
+    on-empty: pass
+    assert:
+      Encrypted: true
+
+  - id: elasticache-encrypted-at-rest
+    description: Every ElastiCache replication group encrypts at rest
+    hint: "Set atRestEncryptionEnabled: true."
+    select: AWS::ElastiCache::ReplicationGroup
+    on-empty: pass
+    assert:
+      AtRestEncryptionEnabled: true
+
+  - id: kinesis-stream-encrypted
+    description: Every Kinesis stream encrypts records at rest
+    hint: "Set encryption: StreamEncryption.KMS on the Stream."
+    select: AWS::Kinesis::Stream
+    on-empty: pass
+    assert:
+      StreamEncryption: present

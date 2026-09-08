@@ -1,0 +1,156 @@
+name: Publish cloudsynth-pack-baseline
+
+# Publishes the second package in this repository, from pack-baseline/.
+#
+# ── Why it is here and not in the private monorepo ──────────────────────────
+# It used to publish from there with a long-lived npm token. npm is retiring
+# 2FA-bypass tokens for direct publishing in January 2027, and a token is a
+# credential that can be stolen and replayed; trusted publishing is not. The
+# same reasoning that moved `cloudsynth` here applies unchanged, and the source
+# this pack derives from — renderBaselinePack() in src/pack.ts — is already
+# public in this repo, so nothing new was opened up to make the move.
+#
+# ── npm setup this depends on ───────────────────────────────────────────────
+# On npmjs.com, cloudsynth-pack-baseline -> Settings -> Trusted publisher:
+#   organization/repository:  cloudsynth-dev/verify
+#   workflow filename:        publish-pack.yml
+# npm matches on that filename, so renaming this file breaks publishing.
+# Publishing access stays on "require 2FA and disallow tokens" — OIDC does not
+# need it loosened, and since 2026-07-31 a token cannot change this config.
+on:
+  push:
+    # `pack-v0.2.1` deliberately does not match publish.yml's `v*` glob, so a
+    # pack release cannot publish the CLI or vice versa.
+    tags: ['pack-v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to (re)publish, e.g. pack-v0.2.1'
+        required: true
+
+# Never on pull_request: a fork PR would otherwise reach the OIDC credential.
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: publish-pack
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: 'https://registry.npmjs.org'
+
+      # Node 20 ships npm 10, which has no trusted publishing at all. Pinned to
+      # the 11 line rather than `latest`: npm 12 requires Node >= 22.22.2 and
+      # refuses to install here with EBADENGINE.
+      - name: Install an npm that can do trusted publishing
+        run: npm i -g npm@11
+
+      - name: Assert npm >= 11.5.1
+        run: |
+          set -euo pipefail
+          HAVE=$(npm --version)
+          LOW=$(printf '%s\n' "$HAVE" 11.5.1 | sort -V | head -1)
+          if [ "$LOW" != "11.5.1" ]; then
+            echo "::error::npm $HAVE is too old for trusted publishing"
+            exit 1
+          fi
+          echo "npm $HAVE"
+
+      # Root devDependencies, for the yaml parser the payload guard uses. The
+      # pack itself has no dependencies and must never acquire any.
+      - run: npm ci
+
+      - name: Tag and manifest must agree
+        run: |
+          set -euo pipefail
+          VER=$(node -p "require('./pack-baseline/package.json').version")
+          REF="${{ github.event.inputs.tag || github.ref_name }}"
+          if [ "$REF" != "pack-v$VER" ]; then
+            echo "::error::tag $REF does not match pack version $VER"
+            exit 1
+          fi
+          echo "Publishing pack-v$VER"
+
+      - name: Refuse to republish an existing version
+        run: |
+          set -euo pipefail
+          VER=$(node -p "require('./pack-baseline/package.json').version")
+          # A published version can be superseded, never replaced.
+          if npm view "cloudsynth-pack-baseline@$VER" version >/dev/null 2>&1; then
+            echo "::error::cloudsynth-pack-baseline@$VER is already on the registry"
+            exit 1
+          fi
+
+      # Ported from the monorepo's prepare-publish.mjs, which this repo does not
+      # carry. These are the guards that made that script worth having, and the
+      # first one is the reason a pack is safe to adopt at all.
+      - name: The payload is what we think it is
+        run: |
+          set -euo pipefail
+          # Ask npm what it would actually ship rather than trusting `files`.
+          # `cd` rather than `--prefix`: --prefix packs the ROOT package and
+          # would have this guard validate `cloudsynth` instead of the pack.
+          ( cd pack-baseline && npm pack --dry-run --json > /tmp/pack.json )
+          node -e "
+            const { readFileSync } = require('fs');
+            const { parse } = require('yaml');
+            const fail = (s) => { console.error('::error::' + s); process.exit(1); };
+
+            const shipped = JSON.parse(readFileSync('/tmp/pack.json','utf8'))[0]
+              .files.map((f) => f.path);
+            const m = require('./pack-baseline/package.json');
+
+            // THE load-bearing assertion. Adopting somebody's ruleset must not
+            // mean running their code in your CI, and the only thing that
+            // guarantees that is a package with nothing runnable in it.
+            const exec = shipped.filter((f) => /\.(js|mjs|cjs|ts|sh)\$/.test(f));
+            if (exec.length) fail('a pack must ship no executable files — found ' + exec.join(', '));
+
+            const expected = ['LICENSE','README.md','cloudsynth.intent.yml','package.json'];
+            const got = [...shipped].sort();
+            if (got.join(',') !== expected.join(','))
+              fail('unexpected payload: ' + got.join(', '));
+
+            for (const field of ['bin','main','exports','scripts','dependencies'])
+              if (m[field]) fail('a pack must not declare ' + field);
+
+            if (JSON.stringify(m).match(/cdk-learn|workspace:/))
+              fail('monorepo detail in the manifest');
+            if (!m.repository?.url?.includes('cloudsynth-dev/verify'))
+              fail('repository does not point at this repo');
+
+            // It is the product's own format. Failing here rather than in
+            // somebody's CI is the entire reason this line exists.
+            const doc = parse(readFileSync('./pack-baseline/cloudsynth.intent.yml','utf8'), { maxAliasCount: 0 });
+            if (doc?.version !== 1 || !Array.isArray(doc.checks) || doc.checks.length === 0)
+              fail('the packaged intent file is not a valid v1 file with checks');
+
+            console.log('payload ok: ' + m.name + '@' + m.version +
+                        ' — ' + shipped.length + ' files, ' + doc.checks.length + ' checks');
+          "
+
+      # No `env:` block. OIDC provides the credential; a token here would
+      # override it and reintroduce the failure this design removes.
+      - name: Publish with provenance
+        working-directory: pack-baseline
+        run: npm publish --provenance --access public
+
+      - name: Say what landed
+        run: |
+          VER=$(node -p "require('./pack-baseline/package.json').version")
+          echo "### Published \`cloudsynth-pack-baseline@$VER\` with provenance" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://www.npmjs.com/package/cloudsynth-pack-baseline/v/$VER" >> "$GITHUB_STEP_SUMMARY"

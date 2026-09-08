@@ -1,0 +1,30 @@
+{
+  "name": "cloudsynth-pack-baseline",
+  "version": "0.2.1",
+  "description": "A baseline set of cloudsynth verify checks that hold on almost any AWS account.",
+  "license": "MIT",
+  "keywords": [
+    "aws",
+    "cdk",
+    "cloudformation",
+    "cloudsynth",
+    "policy"
+  ],
+  "files": [
+    "cloudsynth.intent.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cloudsynth-dev/verify.git",
+    "directory": "pack-baseline"
+  },
+  "homepage": "https://github.com/cloudsynth-dev/verify/tree/main/pack-baseline",
+  "bugs": {
+    "url": "https://github.com/cloudsynth-dev/verify/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
