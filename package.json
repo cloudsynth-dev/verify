@@ -1,6 +1,6 @@
 {
   "name": "cloudsynth",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Check a synthesized AWS CDK app against cloudsynth.intent.yml. Exemptions, coverage accounting, shareable rule packs, and an editor schema. Runs entirely in your own pipeline: no account, no API key, no network calls.",
   "license": "MIT",
   "type": "module",

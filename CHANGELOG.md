@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.4.3
+
+No code changes — identical to 0.4.2 in every shipped file. This release exists
+to exercise the release path end to end, and it is worth saying plainly rather
+than dressing it up as a fix.
+
+0.4.2 proved that publishing works from the mirror over OIDC, but a human still
+ran the sync: `build-mirror.mjs` by hand, then a push, then a tag. That makes
+the public source something someone remembers to do, and the thing you forget to
+do is the thing that drifts from what you actually shipped.
+
+Now a `cloudsynth-v*` tag in the private monorepo does all of it: build, test,
+assert the tag agrees with package.json, assemble the mirror, push the source,
+then tag the pushed commit — in that order, because the tag is what triggers the
+publish and must never point at a commit the mirror does not have yet.
+
+If you are reading this from the outside, the practical consequence is that the
+provenance attestation on every future release names a public commit you can
+open, and that commit got there mechanically rather than by hand.
+
 ## 0.4.2
 
 No code changes. The first release published by CI with **provenance**.
